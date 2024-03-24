@@ -35,19 +35,26 @@ class BertSelfAttention(nn.Module):
     return proj
 
   def attention(self, key, query, value, attention_mask):
-    # Calculate the attention scores
+    # I calculate attention scores by taking the scaled dot-product between query and key.
+    # This step allows me to determine the relevance of each token to every other token in the sequence.
     attention_scores = torch.matmul(query, key.transpose(-1, -2))
-    attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+    attention_scores = attention_scores / math.sqrt(self.attention_head_size)  # I scale the scores to stabilize gradients.
+
+    # I apply an attention mask to prevent the model from attending to padding tokens.
+    # This ensures that the model focuses only on the meaningful parts of the input.
     attention_scores = attention_scores + attention_mask
 
-    # Normalize the attention scores
+    # I normalize the attention scores to probabilities using softmax.
+    # This allows me to weigh the value vectors based on their relevance.
     attention_probs = F.softmax(attention_scores, dim=-1)
-    attention_probs = self.dropout(attention_probs)
+    attention_probs = self.dropout(attention_probs)  # I apply dropout to prevent overfitting.
 
-    # Apply the attention scores to the value tensor
+    # I compute a weighted sum of value vectors based on the attention probabilities.
+    # This creates a context-aware representation for each token.
     context_layer = torch.matmul(attention_probs, value)
 
-    # Concatenate the heads and recover the original tensor shape
+    # I concatenate the attention heads and recover the original tensor shape.
+    # This allows me to combine information from different representation subspaces.
     context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
     new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
     context_layer = context_layer.view(*new_context_layer_shape)
@@ -55,20 +62,24 @@ class BertSelfAttention(nn.Module):
 
 
 
+
   def forward(self, hidden_states, attention_mask):
-    """
-    hidden_states: [bs, seq_len, hidden_state]
-    attention_mask: [bs, 1, 1, seq_len]
-    output: [bs, seq_len, hidden_state]
-    """
-    # first, we have to generate the key, value, query for each token for multi-head attention w/ transform (more details inside the function)
-    # of *_layers are of [bs, num_attention_heads, seq_len, attention_head_size]
-    key_layer = self.transform(hidden_states, self.key)
-    value_layer = self.transform(hidden_states, self.value)
-    query_layer = self.transform(hidden_states, self.query)
-    # calculate the multi-head attention 
-    attn_value = self.attention(key_layer, query_layer, value_layer, attention_mask)
-    return attn_value
+    # I apply multi-head attention to the input hidden states.
+    # This allows the model to attend to different parts of the sequence simultaneously.
+    attention_output = self.self_attention(hidden_states, attention_mask)
+
+    # I use an add-norm step to combine and normalize the output of the attention layer.
+    attention_output = self.add_norm(hidden_states, attention_output, self.attention_dense, self.attention_dropout, self.attention_layer_norm)
+
+    # I pass the attention output through a feed-forward network to introduce additional non-linearity.
+    interm_output = self.interm_dense(attention_output)
+    interm_output = self.interm_af(interm_output)
+
+    # I apply another add-norm step to the output of the feed-forward network.
+    # This ensures that the final output is well-normalized and stable.
+    layer_output = self.add_norm(attention_output, interm_output, self.out_dense, self.out_dropout, self.out_layer_norm)
+    return layer_output
+
 
 
 class BertLayer(nn.Module):
@@ -89,10 +100,21 @@ class BertLayer(nn.Module):
     self.out_dropout = nn.Dropout(config.hidden_dropout_prob)
 
   def add_norm(self, input, output, dense_layer, dropout, ln_layer):
+    # I transform the output using a dense layer to project it into a different representation space.
+    # This transformation allows the model to learn more complex relationships and patterns in the data.
     output = dense_layer(output)
+
+    # I apply dropout to the transformed output to prevent overfitting.
+    # Dropout randomly zeroes out some elements of the tensor, forcing the model to learn robust features that generalize well to unseen data.
     output = dropout(output)
+
+    # I add the original input to the transformed output (residual connection) and normalize the result.
+    # The residual connection helps with gradient flow and training stability, allowing the model to effectively learn deep representations.
+    # Layer normalization stabilizes the input distribution, ensuring that the inputs to each layer are normalized and have a consistent scale.
+    # This helps the model to train faster and more effectively.
     output = ln_layer(input + output)
     return output
+
 
 def forward(self, hidden_states, attention_mask):
     # Multi-head attention
@@ -147,22 +169,27 @@ class BertModel(BertPreTrainedModel):
     input_shape = input_ids.size()
     seq_length = input_shape[1]
 
-    # Get word embedding
+    # I look up word embeddings for the input token IDs.
+    # These embeddings provide a dense representation of the tokens.
     input_embeds = self.word_embedding(input_ids)
 
-    # Get position embedding
+    # I add positional embeddings to the word embeddings to encode the position of each token in the sequence.
     pos_ids = self.position_ids[:, :seq_length]
     pos_embeds = self.pos_embedding(pos_ids)
 
-    # Get token type embedding
+    # I use token type embeddings to provide additional information about the role of each token.
+    # However, in this implementation, I'm using a placeholder as token types are not considered.
     tk_type_ids = torch.zeros(input_shape, dtype=torch.long, device=input_ids.device)
     tk_type_embeds = self.tk_type_embedding(tk_type_ids)
 
-    # Add three embeddings together
+    # I sum the word, position, and token type embeddings to create a combined representation for each token.
     embeddings = input_embeds + pos_embeds + tk_type_embeds
+
+    # I apply layer normalization and dropout to the combined embeddings to ensure they are well-regularized and stable.
     embeddings = self.embed_layer_norm(embeddings)
     embeddings = self.embed_dropout(embeddings)
     return embeddings
+
 
 
 
