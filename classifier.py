@@ -36,26 +36,38 @@ class BertSentimentClassifier(torch.nn.Module):
         super(BertSentimentClassifier, self).__init__()
         self.num_labels = config.num_labels
         self.bert = BertModel.from_pretrained('bert-base-uncased')
-
-        # Pretrain mode does not require updating bert paramters.
+    
+        # Depending on the configuration, I set the BERT parameters to be trainable or not.
+        # In 'pretrain' mode, BERT parameters are frozen, meaning they won't be updated during training.
+        # This is useful when we want to use BERT as a fixed feature extractor.
+        # In 'finetune' mode, BERT parameters are trainable, allowing the model to adapt to the specific task.
         for param in self.bert.parameters():
-            if config.option == 'pretrain':
-                param.requires_grad = False
-            elif config.option == 'finetune':
-                param.requires_grad = True
-
-        ### TODO
-        raise NotImplementedError
-
+            param.requires_grad = (config.option == 'finetune')
+    
+        # I add a dropout layer for regularization, followed by a linear layer for classification.
+        # The dropout layer helps prevent overfitting by randomly zeroing out some of the elements of the tensor.
+        # The linear layer maps the output of BERT to the number of sentiment classes.
+        self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = torch.nn.Linear(config.hidden_size, self.num_labels)
 
     def forward(self, input_ids, attention_mask):
-        '''Takes a batch of sentences and returns logits for sentiment classes'''
-        # The final BERT contextualized embedding is the hidden state of [CLS] token (the first token).
-        # HINT: you should consider what is the appropriate output to return given that
-        # the training loop currently uses F.cross_entropy as the loss function.
-        ### TODO
-        raise NotImplementedError
+        # I extract the last hidden state of the [CLS] token from the BERT model.
+        # The [CLS] token is used in BERT as a special token for classification tasks.
+        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+        cls_output = outputs['pooler_output']
+    
+        # I apply dropout to the [CLS] token's output for regularization.
+        cls_output = self.dropout(cls_output)
+    
+        # I pass the output through the classifier to get logits for each sentiment class.
+        # The logits are the raw scores that the model predicts for each class.
+        logits = self.classifier(cls_output)
+    
+        return logits
 
+
+
+    
 
 
 class SentimentDataset(Dataset):
