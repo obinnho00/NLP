@@ -33,7 +33,8 @@ class BertSelfAttention(nn.Module):
     # by proper transpose, we have proj of [bs, num_attention_heads, seq_len, attention_head_size]
     proj = proj.transpose(1, 2)
     return proj
-
+  
+  ####### Done isaac arum #################
   def attention(self, key, query, value, attention_mask):
     # I calculate attention scores by taking the scaled dot-product between query and key.
     # This step allows me to determine the relevance of each token to every other token in the sequence.
@@ -62,7 +63,7 @@ class BertSelfAttention(nn.Module):
 
 
 
-
+  ####### Done isaac arum #################
   def forward(self, hidden_states, attention_mask):
     # I apply multi-head attention to the input hidden states.
     # This allows the model to attend to different parts of the sequence simultaneously.
@@ -99,6 +100,7 @@ class BertLayer(nn.Module):
     self.out_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
     self.out_dropout = nn.Dropout(config.hidden_dropout_prob)
 
+  ####### Done isaac arum #################
   def add_norm(self, input, output, dense_layer, dropout, ln_layer):
     # I transform the output using a dense layer to project it into a different representation space.
     # This transformation allows the model to learn more complex relationships and patterns in the data.
@@ -164,7 +166,7 @@ class BertModel(BertPreTrainedModel):
     self.pooler_af = nn.Tanh()
 
     self.init_weights()
-
+  ####### Done isaac arum #################
   def embed(self, input_ids):
     input_shape = input_ids.size()
     seq_length = input_shape[1]
