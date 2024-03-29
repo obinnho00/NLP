@@ -43,57 +43,57 @@ class MultitaskBERT(nn.Module):
     '''
     def __init__(self, config):
         super(MultitaskBERT, self).__init__()
-        # You will want to add layers here to perform the downstream tasks.
-        # Pretrain mode does not require updating bert paramters.
+        # I initialize the BERT model from pre-trained weights to leverage its powerful feature extraction capabilities.
         self.bert = BertModel.from_pretrained('bert-base-uncased')
+
+        # Depending on the configuration, I either freeze the BERT parameters during training (in pretrain mode)
+        # or allow them to be updated (in finetune mode). This decision impacts how the model adapts to the specific tasks.
         for param in self.bert.parameters():
             if config.option == 'pretrain':
                 param.requires_grad = False
             elif config.option == 'finetune':
                 param.requires_grad = True
-        ### TODO
-        raise NotImplementedError
 
+        # I define separate classifiers for each task: sentiment classification, paraphrase detection, and semantic textual similarity.
+        # This allows the model to learn task-specific representations on top of the shared BERT embeddings.
+        self.sentiment_classifier = nn.Linear(BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
+        self.paraphrase_classifier = nn.Linear(BERT_HIDDEN_SIZE, 1)
+        self.similarity_classifier = nn.Linear(BERT_HIDDEN_SIZE, 1)
 
     def forward(self, input_ids, attention_mask):
-        'Takes a batch of sentences and produces embeddings for them.'
-        # The final BERT embedding is the hidden state of [CLS] token (the first token)
-        # Here, you can start by just returning the embeddings straight from BERT.
-        # When thinking of improvements, you can later try modifying this
-        # (e.g., by adding other layers).
-        ### TODO
-        raise NotImplementedError
-
+        # In the forward pass, I obtain the embeddings from BERT, specifically the [CLS] token embedding,
+        # which serves as a summary representation of the input sentence.
+        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+        cls_embeddings = outputs.last_hidden_state[:, 0, :]
+        return cls_embeddings
 
     def predict_sentiment(self, input_ids, attention_mask):
-        '''Given a batch of sentences, outputs logits for classifying sentiment.
-        There are 5 sentiment classes:
-        (0 - negative, 1- somewhat negative, 2- neutral, 3- somewhat positive, 4- positive)
-        Thus, your output should contain 5 logits for each sentence.
-        '''
-        ### TODO
-        raise NotImplementedError
+        # For sentiment prediction, I use the [CLS] token embedding and pass it through a linear classifier
+        # to obtain logits for each sentiment class. This approach allows for fine-grained sentiment analysis.
+        cls_embeddings = self.forward(input_ids, attention_mask)
+        sentiment_logits = self.sentiment_classifier(cls_embeddings)
+        return sentiment_logits
 
+    def predict_paraphrase(self, input_ids_1, attention_mask_1, input_ids_2, attention_mask_2):
+        # For paraphrase detection, I obtain embeddings for each sentence in the pair and compare them
+        # by taking their absolute difference. This comparison is then passed through a linear classifier
+        # to predict whether the sentences are paraphrases. This method captures the similarity between sentences.
+        cls_embeddings_1 = self.forward(input_ids_1, attention_mask_1)
+        cls_embeddings_2 = self.forward(input_ids_2, attention_mask_2)
+        embeddings_diff = torch.abs(cls_embeddings_1 - cls_embeddings_2)
+        paraphrase_logit = self.paraphrase_classifier(embeddings_diff)
+        return paraphrase_logit
 
-    def predict_paraphrase(self,
-                           input_ids_1, attention_mask_1,
-                           input_ids_2, attention_mask_2):
-        '''Given a batch of pairs of sentences, outputs a single logit for predicting whether they are paraphrases.
-        Note that your output should be unnormalized (a logit); it will be passed to the sigmoid function
-        during evaluation, and handled as a logit by the appropriate loss function.
-        '''
-        ### TODO
-        raise NotImplementedError
+    def predict_similarity(self, input_ids_1, attention_mask_1, input_ids_2, attention_mask_2):
+        # For semantic textual similarity, I use a similar approach to paraphrase detection,
+        # comparing the [CLS] token embeddings of the sentence pair. The output logit represents the similarity
+        # between the sentences, with higher values indicating greater similarity.
+        cls_embeddings_1 = self.forward(input_ids_1, attention_mask_1)
+        cls_embeddings_2 = self.forward(input_ids_2, attention_mask_2)
+        embeddings_diff = torch.abs(cls_embeddings_1 - cls_embeddings_2)
+        similarity_logit = self.similarity_classifier(embeddings_diff)
+        return similarity_logit
 
-
-    def predict_similarity(self,
-                           input_ids_1, attention_mask_1,
-                           input_ids_2, attention_mask_2):
-        '''Given a batch of pairs of sentences, outputs a single logit corresponding to how similar they are.
-        Note that your output should be unnormalized (a logit).
-        '''
-        ### TODO
-        raise NotImplementedError
 
 
 
