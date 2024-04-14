@@ -174,7 +174,7 @@ def train_multitask(args):
 
         train_acc, train_f1, *_ = model_eval_sst(sst_train_dataloader, model, device)
         dev_acc, dev_f1, *_ = model_eval_sst(sst_dev_dataloader, model, device)
-        epochs_loss[epoch] = dev_acc
+        epochs_loss[epoch] = [train_loss, train_acc, dev_acc]
         if dev_acc > best_dev_acc:
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
