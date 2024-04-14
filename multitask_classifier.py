@@ -64,7 +64,7 @@ class MultitaskBERT(nn.Module):
         # In the forward pass, I obtain the embeddings from BERT, specifically the [CLS] token embedding,
         # which serves as a summary representation of the input sentence.
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        cls_embeddings = outputs.last_hidden_state[:, 0, :]
+        cls_embeddings = outputs['last_hidden_state'][:, 0, :]
         return cls_embeddings
 
     def predict_sentiment(self, input_ids, attention_mask):
@@ -145,6 +145,7 @@ def train_multitask(args):
     optimizer = AdamW(model.parameters(), lr=lr)
     best_dev_acc = 0
 
+    epochs_loss = dict()
     # Run for the specified number of epochs
     for epoch in range(args.epochs):
         model.train()
@@ -166,18 +167,20 @@ def train_multitask(args):
             optimizer.step()
 
             train_loss += loss.item()
+            
             num_batches += 1
 
         train_loss = train_loss / (num_batches)
 
         train_acc, train_f1, *_ = model_eval_sst(sst_train_dataloader, model, device)
         dev_acc, dev_f1, *_ = model_eval_sst(sst_dev_dataloader, model, device)
-
+        epochs_loss[epoch] = dev_acc
         if dev_acc > best_dev_acc:
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
 
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
+        print(epochs_loss)
 
 
 
